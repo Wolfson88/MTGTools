@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MTG First Printing Finder</title>
+  <meta name="description" content="Paste Magic: The Gathering card names and get the first set & year each card was printed (via Scryfall)." />
+  <style>
+    :root{
+      --bg: #0b0e13;
+      --panel: #111720;
+      --text: #e9eef6;
+      --muted: #b8c2d6;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --danger: #fca5a5;
+      --ok: #86efac;
+      --border: #1f2a3b;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: #f7f9fc;
+        --panel: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --accent: #0284c7;
+        --accent-2: #7c3aed;
+        --danger: #b91c1c;
+        --ok: #16a34a;
+        --border: #e5e7eb;
+        --shadow: 0 8px 24px rgba(2, 6, 23, .06);
+      }
+    }
+    html, body{height:100%}
+    body{
+      margin:0; font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Apple Color Emoji','Segoe UI Emoji';
+      color:var(--text); background:radial-gradient(1200px 600px at 100% -10%, rgba(124,58,237,.12), transparent),
+                       radial-gradient(900px 500px at -10% 100%, rgba(2,132,199,.12), transparent), var(--bg);
+    }
+    .wrap{max-width:1100px; margin:0 auto; padding:28px 20px 60px}
+    header{display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:18px}
+    .title{display:flex; align-items:center; gap:12px}
+    .logo{
+      width:40px; height:40px; border-radius:12px; display:grid; place-items:center; 
+      background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:white; font-weight:800; box-shadow:var(--shadow);
+    }
+    h1{font-size:clamp(20px, 1.8vw + 12px, 32px); margin:0}
+    .sub{color:var(--muted); font-size:14px}
+
+    .panel{background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow)}
+    .input-grid{display:grid; grid-template-columns:1fr; gap:14px; padding:18px}
+    @media (min-width:900px){
+      .input-grid{grid-template-columns:1.1fr .9fr}
+    }
+    textarea{
+      width:100%; min-height:180px; resize:vertical; border-radius:12px; border:1px solid var(--border);
+      background:#0b1018; color:var(--text); padding:14px; outline:none;
+    }
+    @media (prefers-color-scheme: light){ textarea{ background:#fff; } }
+
+    .controls{display:flex; flex-wrap:wrap; gap:10px}
+    button, .btn{
+      appearance:none; border:none; cursor:pointer; border-radius:12px; padding:10px 14px; font-weight:600;
+      background:linear-gradient(135deg, rgba(125,211,252,.18), rgba(167,139,250,.18)); color:var(--text);
+      border:1px solid var(--border); box-shadow:var(--shadow); transition:transform .05s ease;
+    }
+    button:hover{transform:translateY(-1px)}
+    button:disabled{opacity:.6; cursor:not-allowed;}
+    .btn-secondary{background:transparent}
+    .btn-danger{background:rgba(239,68,68,.12); color:#fecaca}
+
+    .status{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:14px}
+    progress{width:180px; height:14px}
+
+    .table-wrap{margin-top:18px; overflow:auto; border-top:1px solid var(--border)}
+    table{width:100%; border-collapse:separate; border-spacing:0; min-width:760px}
+    thead th{position:sticky; top:0; background:linear-gradient(0deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02)), var(--panel); z-index:1}
+    th, td{padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; font-size:14px}
+    th{color:var(--muted); font-weight:700}
+    th.sortable{cursor:pointer; user-select:none}
+    th[data-sort="asc"]::after{content:" ▲"; opacity:.7}
+    th[data-sort="desc"]::after{content:" ▼"; opacity:.7}
+    tbody tr:hover{background:rgba(125,211,252,.05)}
+
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; font-size:12px; border-radius:999px; border:1px solid var(--border); color:var(--muted)}
+    .ok{color:var(--ok)} .warn{color:#fde68a} .bad{color:var(--danger)}
+
+    footer{margin-top:22px; color:var(--muted); font-size:13px}
+    code.kbd{font-weight:700; background:rgba(148,163,184,.2); padding:2px 6px; border-radius:6px}
+    .small{font-size:12px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">
+        <div class="logo" aria-hidden="true">MTG</div>
+        <div>
+          <h1>First Printing Finder</h1>
+          <div class="sub">Paste card names, get each card’s first set and year. Powered by the Scryfall API.</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="demoBtn" title="Insert a demo list">Try a demo</button>
+        <button id="clearBtn" class="btn-secondary" title="Clear input">Clear</button>
+        <button id="chartBtn" class="btn-secondary" title="Show chart of cards by release year">Year chart</button>
+      </div>
+    </header>
+
+    <section id="chartSection" class="panel" style="display:none; padding:16px">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px">
+        <div class="sub">Cards per release year</div>
+        <div class="controls"><button id="hideChartBtn" class="btn-secondary">Hide</button></div>
+      </div>
+      <canvas id="yearChart" height="140" aria-label="Bar chart of card count by release year"></canvas>
+      <div class="small sub" style="margin-top:8px">Tip: run “Find first printings” first, then open this chart.</div>
+    </section>
+
+    <section class="panel">
+      <div class="input-grid">
+        <div>
+          <label for="cards" class="sub">Card names (one per line — commas inside names are fine)</label>
+          <textarea id="cards" placeholder="Sythis, Harvest's Hand
+Sol Ring
+Lightning Bolt
+Ponder
+Swords to Plowshares"></textarea>
+          <div class="small sub">Tips: exact names work best. If a name is slightly off, we’ll try a fuzzy match and show what it matched. Counts like “3x Card Name” or “2 Card Name” are ignored.</div>
+        </div>
+        <div>
+          <label class="sub">Actions</label>
+          <div class="controls">
+            <button id="runBtn">Find first printings</button>
+            <button id="stopBtn" class="btn-danger" disabled>Stop</button>
+            <button id="copyBtn" class="btn-secondary" disabled>Copy table</button>
+            <button id="csvBtn" class="btn-secondary" disabled>Download CSV</button>
+          </div>
+          <div class="status" id="status">
+            <progress id="progress" max="100" value="0"></progress>
+            <span id="progressText">Idle</span>
+          </div>
+          <details style="margin-top:10px">
+            <summary><span class="pill">Advanced options</span></summary>
+            <div class="small sub" style="margin-top:8px">
+              <label><input type="checkbox" id="paperOnly" checked> Restrict to paper printings</label><br>
+              <label><input type="checkbox" id="excludeExtras" checked> Exclude funny / playtest printings</label><br>
+              <label><input type="checkbox" id="useFuzzy" checked> Fuzzy‑match if exact lookup fails</label>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="resultsTable" aria-live="polite">
+          <thead>
+            <tr>
+              <th style="width:56px">#</th>
+              <th>Input</th>
+              <th>Matched</th>
+              <th>First Set</th>
+              <th>Set Code</th>
+              <th>Release Date</th>
+              <th>Year</th>
+              <th>Link</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p class="small">This site uses the <a href="https://scryfall.com/docs/api" target="_blank" rel="noopener">Scryfall API</a> but is not produced by or endorsed by Scryfall. © Wizards of the Coast owns Magic: The Gathering®. Please rate‑limit your usage out of courtesy. This website is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the material are used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
+    </footer>
+  </div>
+
+  <script>
+    const cardsEl = document.getElementById('cards');
+    const runBtn = document.getElementById('runBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const csvBtn = document.getElementById('csvBtn');
+    const progress = document.getElementById('progress');
+    const progressText = document.getElementById('progressText');
+    const resultsBody = document.getElementById('resultsBody');
+    const resultsTable = document.getElementById('resultsTable');
+    const demoBtn = document.getElementById('demoBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const paperOnlyEl = document.getElementById('paperOnly');
+    const excludeExtrasEl = document.getElementById('excludeExtras');
+    const useFuzzyEl = document.getElementById('useFuzzy');
+
+    let aborter = null;
+
+    // --- Sorting utilities ---
+    const sortTypes = ['num','string','string','string','string','date','num','string','string'];
+    let sortState = { col: null, dir: null }; // dir: 'asc' | 'desc' | null
+
+    function setupSorting(){
+      const ths = resultsTable.querySelectorAll('thead th');
+      ths.forEach((th, idx) => {
+        th.classList.add('sortable');
+        th.setAttribute('aria-sort','none');
+        th.addEventListener('click', () => cycleSort(idx, ths));
+      });
+    }
+
+    function cycleSort(idx, ths){
+      if (sortState.col !== idx){ sortState = { col: idx, dir: 'asc' }; }
+      else if (sortState.dir === 'asc'){ sortState.dir = 'desc'; }
+      else if (sortState.dir === 'desc'){ sortState = { col: null, dir: null }; }
+      else { sortState.dir = 'asc'; }
+      applySort(ths);
+    }
+
+    function applySort(ths){
+      ths.forEach((th, i) => {
+        th.removeAttribute('data-sort');
+        th.setAttribute('aria-sort','none');
+        if (sortState.col === i && sortState.dir){
+          th.setAttribute('data-sort', sortState.dir);
+          th.setAttribute('aria-sort', sortState.dir === 'asc' ? 'ascending' : 'descending');
+        }
+      });
+
+      const rows = Array.from(resultsBody.querySelectorAll('tr'));
+      if (!sortState.dir){
+        rows.sort((a,b) => Number(a.dataset.index) - Number(b.dataset.index));
+      } else {
+        const type = sortTypes[sortState.col] || 'string';
+        rows.sort((a,b) => {
+          const av = getCellValue(a, sortState.col);
+          const bv = getCellValue(b, sortState.col);
+          const ak = asKey(av, type);
+          const bk = asKey(bv, type);
+          if (ak < bk) return sortState.dir === 'asc' ? -1 : 1;
+          if (ak > bk) return sortState.dir === 'asc' ? 1 : -1;
+          return Number(a.dataset.index) - Number(b.dataset.index);
+        });
+      }
+      rows.forEach(r => resultsBody.appendChild(r));
+    }
+
+    function getCellValue(tr, col){
+      const td = tr.children[col];
+      return td ? td.textContent.trim() : '';
+    }
+
+    function asKey(val, type){
+      if (type === 'num'){
+        const n = Number(val.replace(/[^0-9.-]/g,''));
+        return isNaN(n) ? Infinity : n;
+      }
+      if (type === 'date'){
+        const t = Date.parse(val);
+        return isNaN(t) ? 0 : t;
+      }
+      return val.toLowerCase();
+    }
+
+    demoBtn.addEventListener('click', () => {
+      cardsEl.value = [
+        "Sythis, Harvest's Hand",
+        "Sol Ring",
+        "Lightning Bolt",
+        "Ponder",
+        "Swords to Plowshares",
+        "Nicol Bolas, the Ravager",
+        "Opt",
+        "Brainstorm",
+        "Thoughtseize",
+        "Counterspell"
+      ].join('\n');
+      cardsEl.focus();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      cardsEl.value = '';
+      cardsEl.focus();
+    });
+
+    runBtn.addEventListener('click', () => run());
+    stopBtn.addEventListener('click', () => { if (aborter) aborter.abort(); });
+    copyBtn.addEventListener('click', copyTableToClipboard);
+    csvBtn.addEventListener('click', downloadCSV);
+
+    function parseNames(text){
+      // Normalize quotes and split ONLY on newlines (commas inside names are fine)
+      const normalized = text
+        .replace(/[\u2018\u2019\u201B\u2032\u02BC]/g, "'") // single quotes
+        .replace(/[\u201C\u201D\u2033]/g, '"')
+        .replace(/\r\n?/g, '\n');
+      const parts = normalized.split(/\n+/).map(s => s.trim()).filter(Boolean);
+      // Strip common quantity prefixes, e.g., "2 ", "3x ", "12x "
+      const qtyPrefix = /^\s*\d+\s*(?:[xX])?\s+/;
+      const cleaned = parts.map(line => {
+        const stripped = line.replace(qtyPrefix, '');
+        return stripped || line; // fallback if somehow nothing left
+      });
+      // Deduplicate while preserving order (case-insensitive)
+      const seen = new Set();
+      const out = [];
+      for(const p of cleaned){
+        const key = p.toLowerCase();
+        if(!seen.has(key)){ seen.add(key); out.push(p); }
+      }
+      return out;
+    }
+
+    async function run(){
+      const names = parseNames(cardsEl.value);
+      if (!names.length){ alert('Please paste at least one card name.'); return; }
+
+      // Reset UI
+      resultsBody.innerHTML = '';
+      runBtn.disabled = true; stopBtn.disabled = false; copyBtn.disabled = true; csvBtn.disabled = true;
+      progress.value = 0; progress.max = names.length; progressText.textContent = `Starting…`;
+
+      aborter = new AbortController();
+      const ctrl = aborter;
+
+      let rowIndex = 0;
+
+      try{
+        for(const name of names){
+          if(ctrl.signal.aborted) throw new Error('aborted');
+          rowIndex++;
+          progressText.textContent = `Processing ${rowIndex} of ${names.length}…`;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${rowIndex}</td>
+            <td>${escapeHtml(name)}</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td class="sub">—</td>`;
+          resultsBody.appendChild(tr);
+          tr.dataset.index = String(rowIndex);
+
+          try{
+            const res = await lookupFirstPrinting(name, ctrl.signal, {
+              paperOnly: paperOnlyEl.checked,
+              excludeExtras: excludeExtrasEl.checked,
+              useFuzzy: useFuzzyEl.checked
+            });
+
+            const link = res.card_uri ? `<a href="${res.card_uri}" target="_blank" rel="noopener">Scryfall</a>` : '—';
+            tr.children[2].innerHTML = escapeHtml(res.matched_name || '—');
+            tr.children[3].innerHTML = escapeHtml(res.first_set_name || '—');
+            tr.children[4].textContent = res.first_set_code || '—';
+            tr.children[5].textContent = res.first_released_at || '—';
+            tr.children[6].textContent = res.first_year || '—';
+            tr.children[7].innerHTML = link;
+            const note = [];
+            if(res.fuzzy) note.push('≈ fuzzy match');
+            if(res.notes) note.push(res.notes);
+            tr.children[8].innerHTML = note.length ? note.join('; ') : '<span class="ok">✓</span>';
+          }catch(err){
+            const msg = err && err.message ? err.message : String(err);
+            tr.children[8].innerHTML = `<span class="bad">${escapeHtml(msg)}</span>`;
+          }
+
+          progress.value = rowIndex;
+          await sleep(150); // gentle pacing for API friendliness
+        }
+      }catch(e){
+        if(e.message !== 'aborted'){
+          console.error(e);
+          alert('Something went wrong. See console for details.');
+        }
+      } finally {
+        runBtn.disabled = false; stopBtn.disabled = true; copyBtn.disabled = false; csvBtn.disabled = false; 
+        progressText.textContent = ctrl.signal.aborted ? 'Stopped' : 'Done';
+        aborter = null;
+        setupSorting();
+        try { if (typeof chartSection !== 'undefined' && chartSection && chartSection.style.display !== 'none') { buildOrUpdateYearChart(); } } catch {}
+      }
+    }
+
+    async function lookupFirstPrinting(name, signal, opts){
+      const { paperOnly, excludeExtras, useFuzzy } = opts;
+
+      // 1) Fetch the canonical card to get oracle_id
+      let card = null; let fuzzy = false; let matchedName = null;
+      try{
+        card = await scryfall(`/cards/named?exact=${encodeURIComponent(name)}`, { signal });
+      }catch(exactErr){
+        if(!useFuzzy) throw new Error('Not found (exact)');
+        // Fallback to fuzzy
+        try{
+          card = await scryfall(`/cards/named?fuzzy=${encodeURIComponent(name)}`, { signal });
+          fuzzy = true;
+        }catch(fuzzyErr){
+          throw new Error('Not found');
+        }
+      }
+      matchedName = card && card.name ? card.name : name;
+      if(!card || !card.oracle_id) throw new Error('Card missing oracle_id');
+
+      // 2) Search all prints by oracle_id, sort by release asc, unique prints
+      const filters = [];
+      if(paperOnly) filters.push('game:paper');
+      if(excludeExtras) filters.push('-is:funny', '-is:playtest');
+      const q = `oracleid:${card.oracle_id} ${filters.join(' ')}`.trim();
+      const searchPath = `/cards/search?order=released&dir=asc&unique=prints&q=${encodeURIComponent(q)}`;
+      const prints = await scryfall(searchPath, { signal });
+
+      const items = Array.isArray(prints.data) ? prints.data : [];
+      if(items.length === 0) throw new Error('No prints found');
+
+      // Some entries may have null released_at; choose the first with a date
+      let first = items.find(it => it.released_at) || items[0];
+
+      return {
+        matched_name: matchedName,
+        fuzzy,
+        first_set_name: first.set_name || null,
+        first_set_code: first.set || null,
+        first_released_at: first.released_at || null,
+        first_year: first.released_at ? new Date(first.released_at).getFullYear() : null,
+        card_uri: first.scryfall_uri || null,
+      };
+    }
+
+    async function scryfall(path, { signal }={}){
+      const base = 'https://api.scryfall.com';
+      const url = base + path;
+      let tries = 0;
+      while(true){
+        tries++;
+        const res = await fetch(url, { signal, headers: { 'Accept': 'application/json' } });
+        if(res.status === 200) return res.json();
+        if(res.status === 404){
+          const err = await safeJson(res);
+          throw new Error(err && err.details ? err.details : 'Not found');
+        }
+        if(res.status === 429 || res.status >= 500){
+          if(tries >= 5) throw new Error(`Scryfall error ${res.status}`);
+          const retryAfter = Number(res.headers.get('Retry-After') || 0);
+          const delay = retryAfter ? (retryAfter*1000) : Math.min(750 * Math.pow(1.6, tries-1), 4000);
+          await sleep(delay);
+          continue;
+        }
+        const err = await safeJson(res);
+        throw new Error(err && err.details ? err.details : `HTTP ${res.status}`);
+      }
+    }
+
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    async function safeJson(res){ try{ return await res.json(); } catch{ return null; } }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    function tableToArray(){
+      const rows = [...resultsBody.querySelectorAll('tr')];
+      return rows.map(tr => [...tr.children].map(td => td.textContent.trim()));
+    }
+
+    async function copyTableToClipboard(){
+      const headers = ['#','Input','Matched','First Set','Set Code','Release Date','Year','Link','Notes'];
+      const rows = tableToArray();
+      const tsv = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n');
+      await navigator.clipboard.writeText(tsv);
+      flash('Copied table to clipboard.');
+    }
+
+    function downloadCSV(){
+      const headers = ['Index','Input','Matched','First Set','Set Code','Release Date','Year','Link','Notes'];
+      const rows = [...resultsBody.querySelectorAll('tr')].map(tr => {
+        const tds = [...tr.children];
+        const linkCell = tds[7].querySelector('a');
+        const link = linkCell ? linkCell.href : '';
+        return [
+          tds[0].textContent.trim(),
+          tds[1].textContent.trim(),
+          tds[2].textContent.trim(),
+          tds[3].textContent.trim(),
+          tds[4].textContent.trim(),
+          tds[5].textContent.trim(),
+          tds[6].textContent.trim(),
+          link,
+          tds[8].textContent.trim()
+        ];
+      });
+      const csv = [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'first-printings.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(v){
+      if(v == null) return '';
+      const s = String(v);
+      if(/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }
+
+    function flash(msg){
+      progressText.textContent = msg;
+      setTimeout(() => progressText.textContent = 'Done', 1200);
+    }
+  
+    // --- Year chart feature ---
+    const chartBtn = document.getElementById('chartBtn');
+    const hideChartBtn = document.getElementById('hideChartBtn');
+    const chartSection = document.getElementById('chartSection');
+    let yearChartRef = null;
+
+    if (chartBtn) {
+      chartBtn.addEventListener('click', () => {
+        if (chartSection) chartSection.style.display = 'block';
+        buildOrUpdateYearChart();
+      });
+    }
+    if (hideChartBtn) {
+      hideChartBtn.addEventListener('click', () => {
+        if (chartSection) chartSection.style.display = 'none';
+      });
+    }
+
+    function getYearCounts(){
+      const rows = Array.from(resultsBody.querySelectorAll('tr'));
+      const counts = {};
+      for(const tr of rows){
+        const yrText = tr.children[6]?.textContent?.trim() || '';
+        const yr = parseInt(yrText, 10);
+        if(!isNaN(yr)){
+          counts[yr] = (counts[yr] || 0) + 1;
+        }
+      }
+      const years = Object.keys(counts).map(Number).sort((a,b) => a - b);
+      return { labels: years.map(String), counts: years.map(y => counts[y]) };
+    }
+
+    function buildOrUpdateYearChart(){
+      const data = getYearCounts();
+      if(!data.labels.length){
+        flash('No results to chart yet. Run “Find first printings” first.');
+        return;
+      }
+      const ctx = document.getElementById('yearChart').getContext('2d');
+      if(yearChartRef){
+        yearChartRef.data.labels = data.labels;
+        yearChartRef.data.datasets[0].data = data.counts;
+        yearChartRef.update();
+        return;
+      }
+      yearChartRef = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Cards',
+            data: data.counts
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: 'Cards per Release Year' }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Release Year' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Number of Cards' }, ticks: { precision: 0 } }
+          }
+        }
+      });
+    }
+    </script>
+</body>
+</html>

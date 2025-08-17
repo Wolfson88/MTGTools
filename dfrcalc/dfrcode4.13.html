@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title style="color:black;">Dire Fleet Ravager Calculator</title>
+    <style>
+        body {
+            background-color: black; /* Set background color to black */
+            background-image: url('145601.jpg');
+            background-size: contain; /* Adjusts the size of the background image to fit within the container */
+            background-position: center center; /* Centers the background image */
+            background-repeat: no-repeat; /* Prevents the background image from repeating */
+            margin: 0; /* Removes default margin */
+            padding: 0; /* Removes default padding */
+            font-family: Arial, sans-serif; /* Specify your preferred font family */
+            color: white; /* Set text color to white */
+            position: relative; /* Set the body position to relative */
+            height: 100vh; /* Set the body height to 100% of the viewport height */
+            display: flex; /* Use flexbox to center the content vertically */
+            justify-content: center; /* Center content horizontally */
+            align-items: center; /* Center content vertically */
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.8); /* Add transparency to the background color */
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* Add a subtle shadow effect */
+        }
+
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+
+        .input-container input {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        h1 {
+            text-align: center;
+            color: black; /* Set title color to black */
+        }
+
+        #results {
+            text-align: center;
+        }
+
+        .disclaimer {
+            text-align: center;
+            font-size: 12px; /* Set font size to small */
+            position: absolute; /* Position the disclaimer absolutely */
+            bottom: 20px; /* Set distance from the bottom */
+            width: 100%; /* Make the disclaimer span the entire width */
+            color: orange; /* Set disclaimer text color to orange */
+        }
+
+        .result {
+            color: black; /* Set numeric result text color to black */
+        }
+
+        .result-label {
+            color: black; /* Set result label text color to black */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dire Fleet Ravager Calculator</h1>
+
+        <!-- Input field for number 2 -->
+        <input type="number" id="num2" placeholder="Number of Triggers">
+
+        <div class="input-container">
+            <!-- Input fields for number 1 -->
+            <input type="number" class="num1" placeholder="Life Total 1">
+            <input type="number" class="num1" placeholder="Life Total 2">
+            <input type="number" class="num1" placeholder="Life Total 3">
+            <input type="number" class="num1" placeholder="Life Total 4">
+        </div>
+
+        <!-- Result placeholders -->
+        <div id="results">
+            <!-- Result for each set of inputs will appear here -->
+        </div>
+    </div>
+
+    <div class="disclaimer">
+        This website is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
+    </div>
+
+    <script>
+        // Function to perform calculation and update result
+        function calculate() {
+            // Get the value of the second number
+            var num2 = parseFloat(document.getElementById('num2').value);
+
+            // Get all the elements with class "num1"
+            var num1Inputs = document.getElementsByClassName('num1');
+
+            // Initialize an empty array to store results
+            var results = [];
+
+            // Loop through each "number 1" input and calculate result
+            for (var i = 0; i < num1Inputs.length; i++) {
+                var num1 = parseFloat(num1Inputs[i].value);
+                // Perform your calculation here
+              
+                // Formula to generate output value:
+                for (let i = 1; i <= num2; i++) {
+                    num1 = num1 - Math.ceil(num1 / 3);
+                }
+                var result = num1;
+
+                results.push(result);
+            }
+
+            // Display results
+            var resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = ''; // Clear previous results
+            results.forEach(function(result, index) {
+                var p = document.createElement('p');
+                p.innerText = "Result " + (index + 1) + ": ";
+                p.classList.add('result-label'); // Add result-label class to p element
+                var span = document.createElement('span');
+                span.innerText = result;
+                span.classList.add('result'); // Add result class to span
+                p.appendChild(span);
+                resultsContainer.appendChild(p);
+            });
+        }
+
+        // Add event listeners to input fields to automatically calculate and update results
+        document.getElementById('num2').addEventListener('input', calculate);
+        var num1Inputs = document.getElementsByClassName('num1');
+        for (var i = 0; i < num1Inputs.length; i++) {
+            num1Inputs[i].addEventListener('input', calculate);
+        }
+    </script>
+</body>
+</html>
